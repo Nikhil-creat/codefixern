@@ -7,6 +7,17 @@
 <meta name="description" content="CodeFixern detects languages as you type, diagnoses broken code, runs it in a sandboxed runtime, and keeps a session history — built by Nikhil Chary Sriramoju." />
 
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🩺</text></svg>" />
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%23151a21%22/><text x=%2250%25%22 y=%2262%25%22 font-size=%2258%22 text-anchor=%22middle%22>🩺</text></svg>" />
+<link rel="manifest" href="site.webmanifest" />
+<meta name="theme-color" content="#0e1116" />
+
+<meta property="og:type" content="website" />
+<meta property="og:title" content="CodeFixern — Polyglot Code Diagnostics & Execution" />
+<meta property="og:description" content="Live language detection, sandboxed multi-language execution, and AI healing agents — built by Nikhil Chary Sriramoju." />
+<meta property="og:image" content="https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/svg/1fa7a.svg" />
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="CodeFixern — by Nikhil Chary Sriramoju" />
+<meta name="twitter:description" content="Polyglot code diagnostics, sandboxed execution, and AI healing agents in one static site." />
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -74,7 +85,7 @@
     </div>
     <div class="hero-chips">
       <button class="hero-chip" id="openCredentials">
-        <strong>Nikhil Chary Sriramoju</strong> · B.Tech CSE '27 · view credentials
+        🎓 <strong>Nikhil Chary Sriramoju</strong> — View Credentials
       </button>
       <span class="hero-chip hero-chip-static">3 certifications</span>
       <span class="hero-chip hero-chip-static">2 internships</span>
@@ -108,12 +119,25 @@
   <section class="workspace">
     <div class="tabbar" id="tabbar"></div>
 
+    <div class="restore-banner" id="restoreBanner" style="display:none">
+      <span id="restoreBannerText">Restored your last session from this browser.</span>
+      <button id="restoreBannerDismiss">dismiss</button>
+    </div>
+
     <div class="dropzone-strip" id="dropzone">
       <span>Drop a file to ingest —</span>
       <label class="file-input-label">
         choose file
         <input type="file" id="fileInput" accept=".py,.js,.jsx,.ts,.tsx,.java,.c,.cpp,.h,.hpp,.cs,.go,.rs,.rb,.php,.swift,.kt,.sql,.sh,.json,.txt,.md,.pdf,.docx,.png,.jpg,.jpeg,.webp" style="display:none" multiple />
       </label>
+      <select id="templateSelect" class="template-select">
+        <option value="">insert starter template…</option>
+        <option value="python">Python</option>
+        <option value="javascript">JavaScript</option>
+        <option value="java">Java</option>
+        <option value="cpp">C++</option>
+        <option value="sql">SQL</option>
+      </select>
       <span id="dropzoneStatus" style="color:var(--text-faint)"></span>
     </div>
 
@@ -124,7 +148,12 @@
 
     <div class="editor-hud">
       <span class="hud-lang" id="hudLang"><span class="pulse"></span>detecting…</span>
-      <span id="hudMeta">0 lines · 0 chars</span>
+      <span class="hud-right">
+        <span id="hudMeta">0 lines · 0 chars</span>
+        <button class="hud-icon-btn" id="explainBtn" title="Ask the AI agent to explain this code">✨ Explain</button>
+        <button class="hud-icon-btn" id="downloadTabBtn" title="Download this stream as a file">⭳</button>
+        <span class="hud-hint">Ctrl/⌘+Enter to run</span>
+      </span>
     </div>
 
     <div class="diagnostics-panel" id="diagnosticsPanel">
@@ -140,7 +169,10 @@
     </div>
 
     <div class="output-pane active" data-pane="terminal">
-      <div class="terminal" id="terminal"><span class="empty-hint">Press <strong>Run</strong> to execute the active tab in a real sandboxed runtime (via the public Piston execution API — no login, no local Docker involved).</span></div>
+      <div class="terminal" id="terminal"><span class="empty-hint">Press <strong>Run</strong> to execute the active tab. Python, JavaScript and SQL run instantly in your browser — no login, no key. Other compiled languages need a free RapidAPI Judge0 key (Settings ⚙).</span></div>
+      <div class="pane-toolbar">
+        <button class="link-btn" id="copyTerminalBtn">copy output</button>
+      </div>
     </div>
 
     <div class="output-pane" data-pane="agents">
@@ -159,6 +191,10 @@
 
     <div class="output-pane" data-pane="diff">
       <div class="diff-body" id="diffBody"><div class="diff-empty">Run the Coder agent to see a line-by-line healed diff here.</div></div>
+      <div class="pane-toolbar" id="diffToolbar" style="display:none">
+        <button class="link-btn" id="downloadHealedBtn">download healed</button>
+        <button class="link-btn" id="downloadOptimizedBtn">download optimized</button>
+      </div>
     </div>
   </section>
 
@@ -173,16 +209,39 @@
 <div class="modal-scrim" id="settingsScrim">
   <div class="modal">
     <h2>AI agent key</h2>
-    <p>CodeFixern's static diagnostics and code runner work with no key. To enable the AI Coder/Optimizer agents (real fix suggestions and an optimized rewrite), paste an Anthropic API key. It is stored only in this browser's <code>localStorage</code> and sent directly to Anthropic's API — never to any other server.</p>
-    <label for="apiKeyInput">Anthropic API key</label>
-    <input type="password" id="apiKeyInput" placeholder="sk-ant-..." autocomplete="off" />
+    <p>CodeFixern's static diagnostics, Python/JS/SQL execution and OCR all work with no key. To enable the AI Coder/Optimizer/Explain agents, pick a <strong>free</strong> provider and paste a key. It's stored only in this browser's <code>localStorage</code> and sent directly to that provider — never to any other server.</p>
+
+    <div class="settings-subhead">AI provider (both free, no card required)</div>
+    <div class="provider-tabs">
+      <select id="aiProviderSelect">
+        <option value="groq">Groq — free &amp; fast (Llama 3.3 70B)</option>
+        <option value="gemini">Gemini — free (2.0 Flash)</option>
+      </select>
+    </div>
+    <div class="provider-hint" id="providerHint"></div>
+
+    <label for="apiKeyInput">API key for the selected provider</label>
+    <input type="password" id="apiKeyInput" placeholder="paste key…" autocomplete="off" />
+    <div class="key-test-row">
+      <button class="btn btn-ghost btn-small" id="testKeyBtn" type="button">Test key</button>
+      <span id="keyTestStatus" class="key-test-status"></span>
+    </div>
+
+    <hr class="settings-divider" />
+
+    <div class="settings-subhead">Compiled-language execution (optional)</div>
+    <p style="margin-top:2px">Python, JavaScript and SQL run instantly with no key. For Java, C/C++, Go, Rust and others, add a free <a href="https://rapidapi.com/judge0-official/api/judge0-ce" target="_blank" rel="noopener">RapidAPI "Judge0 CE"</a> key (free tier, no card).</p>
+    <label for="rapidApiKeyInput">RapidAPI key</label>
+    <input type="password" id="rapidApiKeyInput" placeholder="paste RapidAPI key…" autocomplete="off" />
+
     <div class="modal-actions">
       <button class="btn btn-ghost" id="settingsCancel">Cancel</button>
-      <button class="btn btn-ghost" id="settingsRemove">Remove key</button>
+      <button class="btn btn-ghost" id="settingsRemove">Remove this key</button>
       <button class="btn btn-primary" id="settingsSave">Save</button>
     </div>
   </div>
 </div>
+
 
 <!-- ===================== credentials drawer ===================== -->
 <div class="modal-scrim" id="credScrim">
@@ -260,6 +319,8 @@
   </div>
 </div>
 
+<div class="toast-stack" id="toastStack" aria-live="polite"></div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js"></script>
@@ -281,6 +342,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.1.0/diff.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
 
 <script src="app.js"></script>
 </body>

@@ -1,0 +1,10 @@
+{
+  "name": "CodeFixern",
+  "short_name": "CodeFixern",
+  "description": "Polyglot code diagnostics, sandboxed execution, and AI healing agents — by Nikhil Chary Sriramoju.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0e1116",
+  "theme_color": "#0e1116",
+  "icons": []
+}
