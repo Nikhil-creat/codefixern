@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>CodeFixern — Polyglot Code Diagnostics & Execution</title>
+<meta name="description" content="CodeFixern detects languages as you type, diagnoses broken code, runs it in a sandboxed runtime, and keeps a session history — built by Nikhil Chary Sriramoju." />
+
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🩺</text></svg>" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ===================== boot sequence ===================== -->
+<div class="boot-overlay" id="bootOverlay" role="status" aria-live="polite">
+  <div class="boot-grid" aria-hidden="true"></div>
+  <div class="boot-box">
+    <div class="boot-lines" id="bootLines"></div>
+    <div class="boot-progress"><div class="boot-progress-fill" id="bootProgressFill"></div></div>
+  </div>
+  <button class="boot-skip" id="bootSkip">skip boot sequence →</button>
+</div>
+
+<canvas id="bgCanvas" aria-hidden="true"></canvas>
+<div class="scan-sweep" aria-hidden="true"></div>
+
+<header class="app-header">
+  <button class="drawer-toggle" id="drawerToggle" aria-label="Toggle session history">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <div class="brand">
+    <span class="brand-mark" id="liveDot"></span>
+    <span class="brand-name">CodeFixern</span>
+    <span class="brand-tag">v2 · cinematic build</span>
+  </div>
+  <div class="header-spacer"></div>
+
+  <button class="btn btn-ghost cmdk-btn" id="cmdkBtn" title="Command palette">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h.01M15 9h.01M9 15h6"/></svg>
+    <span class="cmdk-label">Commands</span>
+    <span class="cmdk-key">⌘K</span>
+  </button>
+
+  <span class="status-chip" id="engineStatus"><span class="status-dot" id="engineDot"></span><span id="engineStatusText">runtime: idle</span></span>
+  <span class="status-chip mono-chip" id="uptimeChip">session 00:00</span>
+
+  <button class="btn btn-ghost btn-icon" id="accentToggle" aria-label="Switch scan mode" title="Switch scan mode">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.36 6.36l-.7-.7M6.34 6.34l-.7-.7m12.72 0l-.7.7M6.34 17.66l-.7.7"/><circle cx="12" cy="12" r="4"/></svg>
+  </button>
+
+  <button class="btn btn-ghost btn-icon" id="settingsBtn" aria-label="Settings" title="AI agent settings">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+  </button>
+
+  <button class="btn btn-primary" id="runBtn">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+    Run
+  </button>
+</header>
+
+<!-- ===================== credentials strip ===================== -->
+<div class="hero-strip" id="heroStrip">
+  <div class="hero-strip-inner">
+    <div class="hero-typed">
+      <span class="hero-typed-text" id="heroTyped"></span><span class="hero-caret">▌</span>
+    </div>
+    <div class="hero-chips">
+      <button class="hero-chip" id="openCredentials">
+        <strong>Nikhil Chary Sriramoju</strong> · B.Tech CSE '27 · view credentials
+      </button>
+      <span class="hero-chip hero-chip-static">3 certifications</span>
+      <span class="hero-chip hero-chip-static">2 internships</span>
+      <span class="hero-chip hero-chip-static" id="statVaultChip">0 sessions logged</span>
+    </div>
+  </div>
+  <button class="hero-collapse" id="heroCollapse" title="Collapse">︿</button>
+</div>
+
+<div class="shell">
+
+  <div class="vault-scrim" id="vaultScrim"></div>
+  <aside class="vault" id="vault">
+    <div class="vault-head">
+      <div class="vault-title">History Vault</div>
+      <div class="vault-sub" id="vaultCount">0 sessions logged</div>
+      <div class="vault-stats">
+        <div class="vault-stat"><span class="vault-stat-num" id="statRuns">0</span><span class="vault-stat-label">runs</span></div>
+        <div class="vault-stat"><span class="vault-stat-num" id="statHeals">0</span><span class="vault-stat-label">heals</span></div>
+        <div class="vault-stat"><span class="vault-stat-num" id="statLangs">0</span><span class="vault-stat-label">langs</span></div>
+      </div>
+    </div>
+    <div class="vault-list" id="vaultList">
+      <div class="vault-empty">Nothing archived yet. Every diagnose or run is logged here, in this browser only, so you can roll back to an earlier version.</div>
+    </div>
+    <div class="vault-foot">
+      <button class="link-btn" id="clearVaultBtn">Clear all history</button>
+    </div>
+  </aside>
+
+  <section class="workspace">
+    <div class="tabbar" id="tabbar"></div>
+
+    <div class="dropzone-strip" id="dropzone">
+      <span>Drop a file to ingest —</span>
+      <label class="file-input-label">
+        choose file
+        <input type="file" id="fileInput" accept=".py,.js,.jsx,.ts,.tsx,.java,.c,.cpp,.h,.hpp,.cs,.go,.rs,.rb,.php,.swift,.kt,.sql,.sh,.json,.txt,.md,.pdf,.docx,.png,.jpg,.jpeg,.webp" style="display:none" multiple />
+      </label>
+      <span id="dropzoneStatus" style="color:var(--text-faint)"></span>
+    </div>
+
+    <div class="editor-wrap">
+      <textarea id="editorHost"></textarea>
+      <div class="editor-scanline" aria-hidden="true"></div>
+    </div>
+
+    <div class="editor-hud">
+      <span class="hud-lang" id="hudLang"><span class="pulse"></span>detecting…</span>
+      <span id="hudMeta">0 lines · 0 chars</span>
+    </div>
+
+    <div class="diagnostics-panel" id="diagnosticsPanel">
+      <div class="diag-row"><span class="diag-tag ok">idle</span><span class="diag-msg">Start typing or load a file — static diagnostics run automatically.</span></div>
+    </div>
+  </section>
+
+  <section class="outputs">
+    <div class="outputs-tabs">
+      <div class="outputs-tab active" data-pane="terminal">Terminal</div>
+      <div class="outputs-tab" data-pane="agents">Agent Log</div>
+      <div class="outputs-tab" data-pane="diff">Diff</div>
+    </div>
+
+    <div class="output-pane active" data-pane="terminal">
+      <div class="terminal" id="terminal"><span class="empty-hint">Press <strong>Run</strong> to execute the active tab in a real sandboxed runtime (via the public Piston execution API — no login, no local Docker involved).</span></div>
+    </div>
+
+    <div class="output-pane" data-pane="agents">
+      <div class="agents-log" id="agentsLog">
+        <div class="agent-row">
+          <div class="agent-name">DIAGNOSTICIAN</div>
+          <div class="agent-text">Runs locally in your browser — bracket/quote balance, indentation and common structural checks. Always on, no key needed.</div>
+        </div>
+        <div class="agent-row">
+          <div class="agent-name">CODER</div>
+          <div class="agent-text">Produces a healed version and an optimized version. Requires your own Anthropic API key (see the settings gear) — nothing is sent anywhere without it.</div>
+        </div>
+      </div>
+      <div class="byok-note" id="byokNote">No AI agent key configured. <button id="byokInlineBtn">Add your API key</button> to enable real fix &amp; optimize passes.</div>
+    </div>
+
+    <div class="output-pane" data-pane="diff">
+      <div class="diff-body" id="diffBody"><div class="diff-empty">Run the Coder agent to see a line-by-line healed diff here.</div></div>
+    </div>
+  </section>
+
+</div>
+
+<footer class="app-footer">
+  <span>CodeFixern — architected &amp; built by Nikhil Chary Sriramoju</span>
+  <span><a href="https://github.com/Nikhil-creat" target="_blank" rel="noopener">github.com/Nikhil-creat</a> · <a href="https://in.linkedin.com/in/nikhil-chary-sriramoju-95041b38a" target="_blank" rel="noopener">LinkedIn</a> · <a href="README.md">how this works</a></span>
+</footer>
+
+<!-- ===================== settings / BYOK modal ===================== -->
+<div class="modal-scrim" id="settingsScrim">
+  <div class="modal">
+    <h2>AI agent key</h2>
+    <p>CodeFixern's static diagnostics and code runner work with no key. To enable the AI Coder/Optimizer agents (real fix suggestions and an optimized rewrite), paste an Anthropic API key. It is stored only in this browser's <code>localStorage</code> and sent directly to Anthropic's API — never to any other server.</p>
+    <label for="apiKeyInput">Anthropic API key</label>
+    <input type="password" id="apiKeyInput" placeholder="sk-ant-..." autocomplete="off" />
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="settingsCancel">Cancel</button>
+      <button class="btn btn-ghost" id="settingsRemove">Remove key</button>
+      <button class="btn btn-primary" id="settingsSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== credentials drawer ===================== -->
+<div class="modal-scrim" id="credScrim">
+  <aside class="cred-panel">
+    <div class="cred-head">
+      <div>
+        <div class="cred-eyebrow">Operator profile</div>
+        <h2>Nikhil Chary Sriramoju</h2>
+        <div class="cred-role">Full-Stack Systems &amp; AI/ML Builder</div>
+      </div>
+      <button class="btn btn-ghost btn-icon" id="credClose" aria-label="Close">✕</button>
+    </div>
+
+    <div class="cred-body">
+      <section class="cred-section">
+        <div class="cred-section-title">Education</div>
+        <div class="cred-row">
+          <div class="cred-row-main">B.Tech, Computer Science &amp; Engineering</div>
+          <div class="cred-row-sub">Vaagdevi College of Engineering · 2023 – 2027 (final year)</div>
+        </div>
+      </section>
+
+      <section class="cred-section">
+        <div class="cred-section-title">Certifications</div>
+        <ul class="cred-list">
+          <li>NASSCOM / Skill India Digital Hub — AI-Data Engineering &amp; Cloud Infrastructure Analyst</li>
+          <li>IBM SkillsBuild — AI Fundamentals</li>
+          <li>Reliance Foundation — AI/ML Engineer Foundation</li>
+        </ul>
+      </section>
+
+      <section class="cred-section">
+        <div class="cred-section-title">Experience</div>
+        <ul class="cred-list">
+          <li>Machine Learning Engineer Intern — Yuva Intern (NSDC)</li>
+          <li>Data Analytics Intern — Thiranex</li>
+        </ul>
+      </section>
+
+      <section class="cred-section">
+        <div class="cred-section-title">Shipped builds</div>
+        <ul class="cred-list cred-list-projects">
+          <li><strong>DistWorkspace</strong> — distributed collaborative workspace: from-scratch Raft KV store, RGA CRDT editor, Kafka-style broker</li>
+          <li><strong>TrustGuard AI</strong> — identity/transaction risk: gradient-boosting forgery classifier (PR-AUC 0.839) + Isolation Forest ensemble</li>
+          <li><strong>CircleUp</strong> — React Native social app: Socket.io chat, presigned S3 uploads, JWT auth</li>
+          <li><strong>Codelint</strong> — Python AST static analysis tool, deployed on Vercel</li>
+          <li><strong>AI-Surveillance-Alert-System</strong> — YOLOv8 person detection + Telegram alerts + Streamlit dashboard</li>
+          <li><strong>AI-MultiAgent-Support-Platform</strong> — RAG + multi-agent orchestration (retrieval/reasoning/response agents)</li>
+          <li><strong>CodeFixern</strong> — this project: live language detection, sandboxed execution, AI healing agents</li>
+        </ul>
+      </section>
+
+      <section class="cred-section">
+        <div class="cred-section-title">Stack</div>
+        <div class="cred-tags">
+          <span>Python</span><span>Java</span><span>JavaScript/TS</span><span>C/C++</span>
+          <span>FastAPI</span><span>Next.js</span><span>Docker</span><span>PostgreSQL</span>
+          <span>Redis</span><span>FAISS / RAG</span><span>scikit-learn</span><span>Distributed Systems</span>
+        </div>
+      </section>
+    </div>
+
+    <div class="cred-foot">
+      <a class="btn btn-ghost" href="https://github.com/Nikhil-creat" target="_blank" rel="noopener">GitHub ↗</a>
+      <a class="btn btn-ghost" href="https://in.linkedin.com/in/nikhil-chary-sriramoju-95041b38a" target="_blank" rel="noopener">LinkedIn ↗</a>
+    </div>
+  </aside>
+</div>
+
+<!-- ===================== command palette ===================== -->
+<div class="modal-scrim" id="cmdkScrim">
+  <div class="cmdk-box">
+    <input type="text" id="cmdkInput" class="cmdk-input" placeholder="Type a command…  (run, new stream, credentials, history, key, scan mode)" autocomplete="off" />
+    <div class="cmdk-list" id="cmdkList"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/php/php.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/go/go.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/rust/rust.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/ruby/ruby.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/shell/shell.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/sql/sql.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/swift/swift.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/yaml/yaml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/kotlin/kotlin.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/dart/dart.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.1.0/diff.min.js"></script>
+
+<script src="app.js"></script>
+</body>
+</html>
